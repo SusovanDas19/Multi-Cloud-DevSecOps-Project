@@ -1,0 +1,13 @@
+# Node dependencies and build files
+app/node_modules/
+app/dist/
+
+# Terraform state and plugin files
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+terraform/.terraform.lock.hcl
+
+# OS generated files
+.DS_Store

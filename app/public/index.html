@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevSecOps Platform</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .tabs { display: flex; cursor: pointer; background: #f1f1f1; padding: 10px; }
+        .tab { margin-right: 20px; padding: 10px; border-radius: 5px; }
+        .tab.active { background: #0078D4; color: white; }
+        .content { display: none; padding: 20px; border: 1px solid #ccc; margin-top: 10px; }
+        .content.active { display: block; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h2>Multi-Cloud DevSecOps Platform</h2>
+    
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('incidents')">Incident Management</div>
+        <div class="tab" onclick="switchTab('architecture')">Architecture Gallery</div>
+        <div class="tab" onclick="switchTab('upload')">Upload & Share</div>
+    </div>
+
+    <div id="incidents" class="content active">
+        <h3>Report Incident</h3>
+        <input type="text" id="incTitle" placeholder="Title"><br><br>
+        <input type="text" id="incDesc" placeholder="Description"><br><br>
+        <select id="incSev">
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+        </select><br><br>
+        <button onclick="addIncident()">Submit Incident</button>
+        
+        <h3>Active Incidents</h3>
+        <table id="incTable">
+            <tr><th>Title</th><th>Description</th><th>Severity</th><th>Action</th></tr>
+        </table>
+    </div>
+
+    <div id="architecture" class="content">
+        <h3>System Architecture</h3>
+        <p>This image is served from AWS S3, proving cross-cloud integration.</p>
+        <img id="archImg" src="" alt="Architecture Diagram will load here if uploaded to S3" width="600">
+    </div>
+
+    <div id="upload" class="content">
+        <h3>Upload File to AWS S3</h3>
+        <input type="file" id="fileInput" accept="image/*"><br><br>
+        <button onclick="uploadImage()">Upload</button>
+        <p id="uploadResult"></p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
