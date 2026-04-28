@@ -1,10 +1,8 @@
 import express, { Request, Response } from 'express';
-import multer from 'multer';
 import cors from 'cors';
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { Pool } from 'pg';
 import * as promClient from 'prom-client';
 import path from 'path';
-import crypto from 'crypto';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -20,15 +18,43 @@ const httpRequestDurationMicroseconds = new promClient.Histogram({
   name: 'http_request_duration_seconds',
   help: 'Duration of HTTP requests in seconds',
   labelNames: ['method', 'route', 'code'],
-  buckets: [0.1, 0.3, 0.5, 0.7, 1, 3, 5, 7, 10]
 });
 
-// S3 Setup
-const s3Client = new S3Client({ region: process.env.AWS_REGION || 'ap-south-1' });
-const upload = multer({ storage: multer.memoryStorage() });
+// Database Setup (Azure PostgreSQL)
+const pool = new Pool({
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'dbadmin',
+  password: process.env.DB_PASSWORD || 'DevSecOpsPassword123!',
+  database: process.env.DB_NAME || 'postgres',
+  port: 5432,
+  ssl: { rejectUnauthorized: false }
+});
 
-// In-Memory Database for Incidents
-let incidents: any[] = [];
+// Initialize Tables
+const initDB = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS incidents (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255),
+      description TEXT,
+      severity VARCHAR(50),
+      date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS runbooks (
+      id SERIAL PRIMARY KEY,
+      issue_type VARCHAR(255),
+      resolution_steps TEXT
+    );
+  `);
+  // Insert sample runbook if empty
+  const res = await pool.query('SELECT COUNT(*) FROM runbooks');
+  if (parseInt(res.rows[0].count) === 0) {
+    await pool.query(`INSERT INTO runbooks (issue_type, resolution_steps) VALUES ('API Failure', '1. Check pod logs. 2. Restart deployment. 3. Verify DB connection.')`);
+  }
+};
+initDB().catch(console.error);
 
 // Middlewares
 app.use((req, res, next) => {
@@ -39,63 +65,37 @@ app.use((req, res, next) => {
   next();
 });
 
-// --- CORE ENDPOINTS ---
-
-app.get('/incidents', (req: Request, res: Response) => {
-  res.json(incidents);
+// --- INCIDENT ENDPOINTS ---
+app.get('/incidents', async (req: Request, res: Response) => {
+  const result = await pool.query('SELECT * FROM incidents ORDER BY date DESC');
+  res.json(result.rows);
 });
 
-app.post('/incidents', (req: Request, res: Response) => {
-  const newIncident = { id: crypto.randomUUID(), ...req.body, date: new Date().toISOString() };
-  incidents.push(newIncident);
-  res.status(201).json(newIncident);
+app.post('/incidents', async (req: Request, res: Response) => {
+  const { title, description, severity } = req.body;
+  const result = await pool.query(
+    'INSERT INTO incidents (title, description, severity) VALUES ($1, $2, $3) RETURNING *',
+    [title, description, severity]
+  );
+  res.status(201).json(result.rows[0]);
 });
 
-app.delete('/incidents/:id', (req: Request, res: Response) => {
-  incidents = incidents.filter(i => i.id !== req.params.id);
+app.delete('/incidents/:id', async (req: Request, res: Response) => {
+  await pool.query('DELETE FROM incidents WHERE id = $1', [req.params.id]);
   res.status(200).json({ message: 'Deleted' });
 });
 
-app.post('/upload', upload.single('image'), async (req: Request, res: Response): Promise<any> => {
-  if (!req.file) return res.status(400).send('No file uploaded.');
-  
-  const fileName = `${Date.now()}-${req.file.originalname}`;
-  const bucketName = process.env.AWS_S3_BUCKET;
-
-  const params = {
-    Bucket: bucketName,
-    Key: fileName,
-    Body: req.file.buffer,
-    ContentType: req.file.mimetype,
-  };
-
-  try {
-    await s3Client.send(new PutObjectCommand(params));
-    const publicUrl = `https://${bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${fileName}`;
-    res.json({ url: publicUrl });
-  } catch (error) {
-    console.error("S3 Upload Error:", error);
-    res.status(500).send('Error uploading to S3.');
-  }
+// --- RUNBOOK ENDPOINTS ---
+app.get('/runbooks', async (req: Request, res: Response) => {
+  const result = await pool.query('SELECT * FROM runbooks');
+  res.json(result.rows);
 });
 
 // --- OPERATIONAL ENDPOINTS ---
-
-app.get('/health', (req: Request, res: Response) => {
-  res.status(200).json({ status: 'UP' });
-});
-
+app.get('/health', (req: Request, res: Response) => res.status(200).json({ status: 'UP' }));
 app.get('/metrics', async (req: Request, res: Response) => {
   res.set('Content-Type', promClient.register.contentType);
   res.end(await promClient.register.metrics());
 });
 
-app.get('/work', (req: Request, res: Response) => {
-  let sum = 0;
-  for (let i = 0; i < 1e7; i++) { sum += i; } // Simulate CPU load
-  res.status(200).json({ message: 'Workload generated', sum });
-});
-
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+app.listen(port, () => console.log(`Server running on port ${port}`));

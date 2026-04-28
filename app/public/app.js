@@ -4,17 +4,22 @@ function switchTab(tabId) {
     event.target.classList.add('active');
     document.getElementById(tabId).classList.add('active');
     if(tabId === 'incidents') fetchIncidents();
+    if(tabId === 'runbook') fetchRunbooks();
 }
 
 async function fetchIncidents() {
     const res = await fetch('/incidents');
     const data = await res.json();
     const table = document.getElementById('incTable');
-    table.innerHTML = '<tr><th>Title</th><th>Description</th><th>Severity</th><th>Action</th></tr>';
+    table.innerHTML = '<tr><th>Title</th><th>Description</th><th>Severity</th><th>Date</th><th>Action</th></tr>';
     data.forEach(inc => {
+        const dateStr = new Date(inc.date).toLocaleDateString();
         table.innerHTML += `<tr>
-            <td>${inc.title}</td><td>${inc.description}</td><td>${inc.severity}</td>
-            <td><button onclick="deleteIncident('${inc.id}')">Delete</button></td>
+            <td>${inc.title}</td><td>${inc.description}</td><td>${inc.severity}</td><td>${dateStr}</td>
+            <td>
+                <button onclick="generateEmail('${inc.title}', '${inc.description}', '${inc.severity}', '${dateStr}')">Copy Email</button>
+                <button onclick="deleteIncident('${inc.id}')">Delete</button>
+            </td>
         </tr>`;
     });
 }
@@ -25,11 +30,7 @@ async function addIncident() {
         description: document.getElementById('incDesc').value,
         severity: document.getElementById('incSev').value
     };
-    await fetch('/incidents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
+    await fetch('/incidents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     fetchIncidents();
 }
 
@@ -38,17 +39,21 @@ async function deleteIncident(id) {
     fetchIncidents();
 }
 
-async function uploadImage() {
-    const file = document.getElementById('fileInput').files[0];
-    if (!file) return alert("Select an image first");
-
-    const formData = new FormData();
-    formData.append('image', file);
-
-    const res = await fetch('/upload', { method: 'POST', body: formData });
+async function fetchRunbooks() {
+    const res = await fetch('/runbooks');
     const data = await res.json();
-    document.getElementById('uploadResult').innerHTML = `File uploaded! <a href="${data.url}" target="_blank">View Here</a>`;
+    const table = document.getElementById('runbookTable');
+    table.innerHTML = '<tr><th>Issue Type</th><th>Resolution Steps</th></tr>';
+    data.forEach(rb => {
+        table.innerHTML += `<tr><td>${rb.issue_type}</td><td>${rb.resolution_steps}</td></tr>`;
+    });
 }
 
-// Load incidents on start
+function generateEmail(title, desc, sev, date) {
+    const emailText = `Subject: [${sev.toUpperCase()}] ${title}\n\nTitle: ${title}\nDescription: ${desc}\nSeverity: ${sev}\nDate: ${date}`;
+    navigator.clipboard.writeText(emailText).then(() => {
+        alert("Email template copied to clipboard!");
+    });
+}
+
 fetchIncidents();

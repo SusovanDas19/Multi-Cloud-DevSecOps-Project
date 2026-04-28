@@ -54,7 +54,7 @@ resource "azurerm_network_security_group" "nsg" {
     source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
-  
+
   security_rule {
     name                       = "K8s_NodePorts"
     priority                   = 1003
@@ -92,14 +92,14 @@ resource "azurerm_linux_virtual_machine" "vm" {
   location            = azurerm_resource_group.rg.location
   size                = "Standard_D2s_v3"
   admin_username      = "azureuser"
-  
+
   network_interface_ids = [
     azurerm_network_interface.nic.id,
   ]
 
   admin_ssh_key {
     username   = "azureuser"
-    public_key = file("~/.ssh/id_rsa.pub") 
+    public_key = file("~/.ssh/id_rsa.pub")
   }
 
   os_disk {
@@ -141,4 +141,28 @@ output "azure_vm_public_ip" {
 
 output "aws_s3_bucket_name" {
   value = aws_s3_bucket.app_storage.bucket
+}
+
+# ==================== AZURE DATABASE ====================
+resource "azurerm_postgresql_flexible_server" "db" {
+  name                   = "${var.project_name}-db-${random_id.bucket_suffix.hex}"
+  resource_group_name    = azurerm_resource_group.rg.name
+  location               = azurerm_resource_group.rg.location
+  version                = "14"
+  administrator_login    = "dbadmin"
+  administrator_password = "DevSecOpsPassword123!"
+  zone                   = "1"
+  storage_mb             = 32768
+  sku_name               = "B_Standard_B1ms"
+}
+
+resource "azurerm_postgresql_flexible_server_firewall_rule" "vm_access" {
+  name             = "allow-azure-vm"
+  server_id        = azurerm_postgresql_flexible_server.db.id
+  start_ip_address = azurerm_public_ip.pip.ip_address
+  end_ip_address   = azurerm_public_ip.pip.ip_address
+}
+
+output "azure_db_host" {
+  value = azurerm_postgresql_flexible_server.db.fqdn
 }
