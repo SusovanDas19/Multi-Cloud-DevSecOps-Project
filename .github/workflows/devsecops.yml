@@ -30,7 +30,7 @@ jobs:
         with:
           args: >
             -Dsonar.projectKey=devsecops-app
-            -Dsonar.organization=SusovanDas19
+            -Dsonar.organization=susovandas19
         continue-on-error: true
 
   k8s-policy-check:
