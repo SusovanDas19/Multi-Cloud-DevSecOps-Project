@@ -22,17 +22,18 @@
         button { background-color: #0078D4; color: white; border: none; cursor: pointer; transition: transform 0.1s, background 0.3s; }
         button:hover { background-color: #005a9e; transform: scale(1.02); }
         .gallery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
-        .gallery-grid img { max-width: 100%; border-radius: 8px; border: 1px solid #ddd; }
+        .gallery-grid img { max-width: 100%; border-radius: 8px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
     <h2>Multi-Cloud DevSecOps Platform</h2>
     <div class="tabs">
-        <div class="tab active" onclick="switchTab('incidents')">Incident Management</div>
-        <div class="tab" onclick="switchTab('architecture')">Architecture Gallery</div>
-        <div class="tab" onclick="switchTab('runbook')">Runbook</div>
+        <div class="tab active" onclick="switchTab('incidents', this)">Incident Management</div>
+        <div class="tab" onclick="switchTab('architecture', this)">Architecture Gallery</div>
+        <div class="tab" onclick="switchTab('runbook', this)">Runbook</div>
     </div>
 
+    <!-- Tab 1: Incidents -->
     <div id="incidents" class="content active">
         <h3>Report Incident</h3>
         <input type="text" id="incTitle" placeholder="Title" required><br>
@@ -50,13 +51,18 @@
         </table>
     </div>
 
+    <!-- Tab 2: Architecture Gallery -->
     <div id="architecture" class="content">
         <h3>System Architecture (AWS S3)</h3>
-        <div class="gallery-grid" id="galleryContainer">Loading images...</div>
+        <p>Images loaded securely from AWS S3 via pre-signed URLs.</p>
+        <div class="gallery-grid" id="galleryContainer">
+            <p>Loading images...</p>
+        </div>
     </div>
 
+    <!-- Tab 3: Runbooks -->
     <div id="runbook" class="content">
-        <h3>Incident Response Runbooks</h3>
+        <h3>Incident Response Runbooks (Azure DB)</h3>
         <table id="runbookTable">
             <tr><th>Issue Type</th><th>Resolution Steps</th></tr>
         </table>
