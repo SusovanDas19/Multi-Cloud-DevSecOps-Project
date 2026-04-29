@@ -36,7 +36,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Initialize Database Tables and Seed Data
+// Initialize Database Tables
 const initDB = async () => {
   try {
     await pool.query(`
@@ -50,10 +50,9 @@ const initDB = async () => {
       );
     `);
     
-    // FIX: Check if we have less than 5 runbooks. If so, wipe and insert all 5.
     const res = await pool.query('SELECT COUNT(*) FROM runbooks');
     if (parseInt(res.rows[0].count) < 5) {
-      await pool.query('TRUNCATE runbooks RESTART IDENTITY CASCADE'); // Clear old data
+      await pool.query('TRUNCATE runbooks RESTART IDENTITY CASCADE');
       await pool.query(`INSERT INTO runbooks (issue_type, resolution_steps) VALUES
         ('API Failure', '1. Check pod logs using kubectl. 2. Restart deployment. 3. Verify DB connection.'),
         ('DB Connection Timeout', '1. Check Azure DB firewall rules. 2. Verify DB_HOST secret in K8s. 3. Check node network.'),
@@ -118,7 +117,7 @@ app.get('/runbooks', async (req: Request, res: Response) => {
 // --- GALLERY ENDPOINTS ---
 app.get('/gallery', async (req: Request, res: Response): Promise<any> => {
   try {
-    if (!BUCKET_NAME) return res.json([]); // Return empty if no bucket configured
+    if (!BUCKET_NAME) return res.json([]); 
     
     const command = new ListObjectsV2Command({ Bucket: BUCKET_NAME, Prefix: 'arch_gallery/' });
     const response = await s3Client.send(command);
@@ -126,7 +125,6 @@ app.get('/gallery', async (req: Request, res: Response): Promise<any> => {
     
     if (response.Contents) {
       for (const item of response.Contents) {
-        // Skip the folder itself, only process files
         if (item.Key && item.Key !== 'arch_gallery/' && item.Key.length > 'arch_gallery/'.length) {
           const getCmd = new GetObjectCommand({ Bucket: BUCKET_NAME, Key: item.Key });
           const url = await getSignedUrl(s3Client, getCmd, { expiresIn: 3600 });

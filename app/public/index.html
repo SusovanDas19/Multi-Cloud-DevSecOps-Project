@@ -22,15 +22,14 @@
         button { background-color: #0078D4; color: white; border: none; cursor: pointer; transition: transform 0.1s, background 0.3s; }
         button:hover { background-color: #005a9e; transform: scale(1.02); }
         .gallery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
-        .gallery-grid img { max-width: 100%; border-radius: 8px; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     </style>
 </head>
 <body>
     <h2>Multi-Cloud DevSecOps Platform</h2>
     <div class="tabs">
-        <div class="tab active" onclick="switchTab('incidents', this)">Incident Management</div>
-        <div class="tab" onclick="switchTab('architecture', this)">Architecture Gallery</div>
-        <div class="tab" onclick="switchTab('runbook', this)">Runbook</div>
+        <div id="tab-incidents" class="tab active" onclick="switchTab('incidents', 'tab-incidents')">Incident Management</div>
+        <div id="tab-architecture" class="tab" onclick="switchTab('architecture', 'tab-architecture')">Architecture Gallery</div>
+        <div id="tab-runbook" class="tab" onclick="switchTab('runbook', 'tab-runbook')">Runbook</div>
     </div>
 
     <!-- Tab 1: Incidents -->

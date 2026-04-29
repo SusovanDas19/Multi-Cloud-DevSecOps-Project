@@ -1,38 +1,48 @@
-// FIX: Safely handles element passing to avoid crash
-function switchTab(tabId, element) {
+// Global State Variable
+let currentIncidents = [];
+
+// Bulletproof Tab Switching
+function switchTab(contentId, tabId) {
+    // 1. Hide all tabs and content
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('.content').forEach(c => {
+        c.classList.remove('active');
+        c.style.display = 'none'; // Force hide
+    });
     
-    if (element) {
-        element.classList.add('active');
-    } else {
-        // Fallback if element is not passed
-        document.querySelector(`.tab[onclick*="${tabId}"]`).classList.add('active');
-    }
-    
+    // 2. Activate selected tab and content
     document.getElementById(tabId).classList.add('active');
+    const activeContent = document.getElementById(contentId);
+    activeContent.classList.add('active');
+    activeContent.style.display = 'block'; // Force show
     
-    // Explicitly call the fetches
-    if(tabId === 'incidents') fetchIncidents();
-    if(tabId === 'runbook') fetchRunbooks();
-    if(tabId === 'architecture') fetchGallery();
+    // 3. Trigger API Calls
+    if(contentId === 'incidents') fetchIncidents();
+    if(contentId === 'runbook') fetchRunbooks();
+    if(contentId === 'architecture') fetchGallery();
 }
 
 async function fetchIncidents() {
     try {
         const res = await fetch('/incidents');
-        const data = await res.json();
+        currentIncidents = await res.json(); // Store data globally
+        
         const table = document.getElementById('incTable');
         table.innerHTML = '<tr><th>Title</th><th>Description</th><th>Severity</th><th>Date</th><th>Action</th></tr>';
-        data.forEach(inc => {
+        
+        currentIncidents.forEach((inc, index) => {
             const dateStr = new Date(inc.date).toLocaleDateString();
-            const escTitle = inc.title.replace(/'/g, "\\'");
-            const escDesc = inc.description.replace(/'/g, "\\'");
+            let sevColor = inc.severity === 'High' ? 'red' : (inc.severity === 'Medium' ? 'orange' : 'green');
+            
+            // Pass the array INDEX instead of raw strings to prevent JS crashes
             table.innerHTML += `<tr>
-                <td>${inc.title}</td><td>${inc.description}</td><td><span style="font-weight:bold; color:${inc.severity==='High'?'red':inc.severity==='Medium'?'orange':'green'}">${inc.severity}</span></td><td>${dateStr}</td>
+                <td>${inc.title}</td>
+                <td>${inc.description}</td>
+                <td><span style="font-weight:bold; color:${sevColor}">${inc.severity}</span></td>
+                <td>${dateStr}</td>
                 <td>
-                    <button onclick="generateEmail('${escTitle}', '${escDesc}', '${inc.severity}', '${dateStr}')">Copy Email</button>
-                    <button style="background-color:#dc3545;" onclick="deleteIncident('${inc.id}')">Delete</button>
+                    <button onclick="generateEmail(${index})">Copy Email</button>
+                    <button style="background-color:#dc3545;" onclick="deleteIncident(${inc.id})">Delete</button>
                 </td>
             </tr>`;
         });
@@ -76,19 +86,19 @@ async function fetchRunbooks() {
 
 async function fetchGallery() {
     const container = document.getElementById('galleryContainer');
-    container.innerHTML = 'Loading images from S3...';
+    container.innerHTML = '<p>Loading images from S3...</p>';
     try {
         const res = await fetch('/gallery');
         const urls = await res.json();
         
         if (!urls || urls.length === 0) {
-            container.innerHTML = '<p>No images found in AWS S3 <code>arch_gallery/</code> folder.</p>';
+            container.innerHTML = '<p>No images found in AWS S3 <code>arch_gallery/</code> folder. Have you uploaded them?</p>';
             return;
         }
         
         container.innerHTML = '';
         urls.forEach(url => {
-            container.innerHTML += `<img src="${url}" alt="Architecture Diagram">`;
+            container.innerHTML += `<img src="${url}" alt="Architecture Diagram" style="width:100%; max-width:600px; border-radius:8px; border:1px solid #ddd; margin-bottom: 20px;">`;
         });
     } catch (err) {
         console.error("Error fetching gallery:", err);
@@ -96,40 +106,35 @@ async function fetchGallery() {
     }
 }
 
-// FIX: Universal Copy Fallback for HTTP (Non-Secure Contexts)
-function generateEmail(title, desc, sev, date) {
-    const emailText = `Subject: [${sev.toUpperCase()}] ${title}\n\nTitle: ${title}\nDescription: ${desc}\nSeverity: ${sev}\nDate: ${date}`;
+// Ultra-robust Copy Fallback for HTTP (Non-Secure Contexts)
+function generateEmail(index) {
+    const inc = currentIncidents[index];
+    const dateStr = new Date(inc.date).toLocaleDateString();
+    const emailText = `Subject: [${inc.severity.toUpperCase()}] ${inc.title}\n\nTitle: ${inc.title}\nDescription: ${inc.description}\nSeverity: ${inc.severity}\nDate: ${dateStr}`;
     
-    // Create a temporary, invisible textarea
+    // 1. Create a temporary text area
     const textArea = document.createElement("textarea");
     textArea.value = emailText;
-    
-    // Make sure it doesn't cause scrolling
     textArea.style.position = "fixed";
     textArea.style.top = "0";
     textArea.style.left = "0";
-    textArea.style.width = "2em";
-    textArea.style.height = "2em";
-    textArea.style.padding = "0";
-    textArea.style.border = "none";
-    textArea.style.outline = "none";
-    textArea.style.boxShadow = "none";
-    textArea.style.background = "transparent";
+    textArea.style.opacity = "0"; // Make invisible
     
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
 
     try {
+        // 2. Attempt legacy copy command
         const successful = document.execCommand('copy');
         if (successful) {
             alert("Email template copied to clipboard!");
         } else {
-            alert("Copy failed. Please manually select and copy.");
+            // 3. Guaranteed Fallback if browser entirely blocks scripts from copying
+            window.prompt("Copy failed (Browser Blocked). Press Ctrl+C / Cmd+C to copy the text below:", emailText);
         }
     } catch (err) {
-        console.error('Fallback: Oops, unable to copy', err);
-        alert("Copy failed. Browser blocked the action.");
+        window.prompt("Copy failed (Browser Blocked). Press Ctrl+C / Cmd+C to copy the text below:", emailText);
     }
     
     document.body.removeChild(textArea);
