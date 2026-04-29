@@ -5,16 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DevSecOps Platform</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-        .tabs { display: flex; cursor: pointer; background: #f1f1f1; padding: 10px; }
-        .tab { margin-right: 20px; padding: 10px; border-radius: 5px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #f8f9fa; color: #333; }
+        h2 { color: #0078D4; }
+        .tabs { display: flex; cursor: pointer; background: #fff; padding: 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .tab { margin-right: 10px; padding: 12px 20px; border-radius: 5px; transition: background 0.3s, color 0.3s; font-weight: bold; }
+        .tab:hover { background: #e0f0ff; }
         .tab.active { background: #0078D4; color: white; }
-        .content { display: none; padding: 20px; border: 1px solid #ccc; margin-top: 10px; }
-        .content.active { display: block; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        button { cursor: pointer; margin-right: 5px; }
+        .content { display: none; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-top: 15px; }
+        .content.active { display: block; animation: fadeIn 0.4s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #dee2e6; padding: 12px; text-align: left; }
+        th { background-color: #f1f3f5; }
+        tr:hover { background-color: #f8f9fa; }
+        input, select, button { padding: 10px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { background-color: #0078D4; color: white; border: none; cursor: pointer; transition: transform 0.1s, background 0.3s; }
+        button:hover { background-color: #005a9e; transform: scale(1.02); }
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 15px; }
+        .gallery-grid img { max-width: 100%; border-radius: 8px; border: 1px solid #ddd; }
     </style>
 </head>
 <body>
@@ -27,13 +35,13 @@
 
     <div id="incidents" class="content active">
         <h3>Report Incident</h3>
-        <input type="text" id="incTitle" placeholder="Title"><br><br>
-        <input type="text" id="incDesc" placeholder="Description"><br><br>
+        <input type="text" id="incTitle" placeholder="Title" required><br>
+        <input type="text" id="incDesc" placeholder="Description" required><br>
         <select id="incSev">
             <option value="Low">Low</option>
             <option value="Medium">Medium</option>
             <option value="High">High</option>
-        </select><br><br>
+        </select><br>
         <button onclick="addIncident()">Submit Incident</button>
         
         <h3>Active Incidents</h3>
@@ -43,8 +51,8 @@
     </div>
 
     <div id="architecture" class="content">
-        <h3>System Architecture</h3>
-        <img id="archImg" src="https://YOUR_S3_BUCKET_URL_HERE/architecture.png" alt="Architecture Diagram from S3" width="600">
+        <h3>System Architecture (AWS S3)</h3>
+        <div class="gallery-grid" id="galleryContainer">Loading images...</div>
     </div>
 
     <div id="runbook" class="content">

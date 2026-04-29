@@ -21,6 +21,7 @@ spec:
         ports:
         - containerPort: 3000
         env:
+        # --- Azure Database Environment Variables ---
         - name: DB_HOST
           value: "DB_HOST_PLACEHOLDER"
         - name: DB_USER
@@ -29,12 +30,28 @@ spec:
           value: "DB_PASSWORD_PLACEHOLDER"
         - name: DB_NAME
           value: "postgres"
+        # --- AWS S3 Environment Variables ---
+        - name: AWS_REGION
+          value: "ap-northeast-1"
+        - name: AWS_S3_BUCKET
+          value: "AWS_S3_BUCKET_PLACEHOLDER"
+        - name: AWS_ACCESS_KEY_ID
+          value: "AWS_ACCESS_KEY_ID_PLACEHOLDER"
+        - name: AWS_SECRET_ACCESS_KEY
+          value: "AWS_SECRET_ACCESS_KEY_PLACEHOLDER"
+        # --- Health Checks ---
         livenessProbe:
           httpGet:
             path: /health
             port: 3000
           initialDelaySeconds: 15
           periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service

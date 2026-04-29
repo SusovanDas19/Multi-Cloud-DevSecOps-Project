@@ -3,6 +3,8 @@ import cors from 'cors';
 import { Pool } from 'pg';
 import * as promClient from 'prom-client';
 import path from 'path';
+import { S3Client, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -11,7 +13,6 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
-// Metrics Setup
 const collectDefaultMetrics = promClient.collectDefaultMetrics;
 collectDefaultMetrics();
 const httpRequestDurationMicroseconds = new promClient.Histogram({
@@ -20,7 +21,9 @@ const httpRequestDurationMicroseconds = new promClient.Histogram({
   labelNames: ['method', 'route', 'code'],
 });
 
-// Database Setup (Azure PostgreSQL)
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'ap-northeast-1' });
+const BUCKET_NAME = process.env.AWS_S3_BUCKET;
+
 const pool = new Pool({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'dbadmin',
@@ -30,42 +33,36 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Initialize Tables
 const initDB = async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS incidents (
-      id SERIAL PRIMARY KEY,
-      title VARCHAR(255),
-      description TEXT,
-      severity VARCHAR(50),
-      date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      id SERIAL PRIMARY KEY, title VARCHAR(255), description TEXT, severity VARCHAR(50), date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
   await pool.query(`
     CREATE TABLE IF NOT EXISTS runbooks (
-      id SERIAL PRIMARY KEY,
-      issue_type VARCHAR(255),
-      resolution_steps TEXT
+      id SERIAL PRIMARY KEY, issue_type VARCHAR(255), resolution_steps TEXT
     );
   `);
-  // Insert sample runbook if empty
   const res = await pool.query('SELECT COUNT(*) FROM runbooks');
   if (parseInt(res.rows[0].count) === 0) {
-    await pool.query(`INSERT INTO runbooks (issue_type, resolution_steps) VALUES ('API Failure', '1. Check pod logs. 2. Restart deployment. 3. Verify DB connection.')`);
+    await pool.query(`INSERT INTO runbooks (issue_type, resolution_steps) VALUES
+      ('API Failure', '1. Check pod logs using kubectl. 2. Restart deployment. 3. Verify DB connection.'),
+      ('DB Connection Timeout', '1. Check Azure DB firewall rules. 2. Verify DB_HOST secret in K8s. 3. Check node network.'),
+      ('High CPU Usage', '1. Check Grafana dashboard. 2. Scale up replicas. 3. Profile Node.js app.'),
+      ('Unauthorized Access', '1. Block IP in Azure NSG. 2. Rotate DB credentials. 3. Audit IAM roles.'),
+      ('Pod CrashLoopBackOff', '1. Run kubectl describe pod. 2. Check container logs. 3. Verify health probe paths.')
+    `);
   }
 };
 initDB().catch(console.error);
 
-// Middlewares
 app.use((req, res, next) => {
   const end = httpRequestDurationMicroseconds.startTimer();
-  res.on('finish', () => {
-    end({ method: req.method, route: req.route ? req.route.path : req.path, code: res.statusCode });
-  });
+  res.on('finish', () => end({ method: req.method, route: req.route ? req.route.path : req.path, code: res.statusCode }));
   next();
 });
 
-// --- INCIDENT ENDPOINTS ---
 app.get('/incidents', async (req: Request, res: Response) => {
   const result = await pool.query('SELECT * FROM incidents ORDER BY date DESC');
   res.json(result.rows);
@@ -73,10 +70,7 @@ app.get('/incidents', async (req: Request, res: Response) => {
 
 app.post('/incidents', async (req: Request, res: Response) => {
   const { title, description, severity } = req.body;
-  const result = await pool.query(
-    'INSERT INTO incidents (title, description, severity) VALUES ($1, $2, $3) RETURNING *',
-    [title, description, severity]
-  );
+  const result = await pool.query('INSERT INTO incidents (title, description, severity) VALUES ($1, $2, $3) RETURNING *', [title, description, severity]);
   res.status(201).json(result.rows[0]);
 });
 
@@ -85,13 +79,31 @@ app.delete('/incidents/:id', async (req: Request, res: Response) => {
   res.status(200).json({ message: 'Deleted' });
 });
 
-// --- RUNBOOK ENDPOINTS ---
 app.get('/runbooks', async (req: Request, res: Response) => {
   const result = await pool.query('SELECT * FROM runbooks');
   res.json(result.rows);
 });
 
-// --- OPERATIONAL ENDPOINTS ---
+app.get('/gallery', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const command = new ListObjectsV2Command({ Bucket: BUCKET_NAME, Prefix: 'arch_gallery/' });
+    const response = await s3Client.send(command);
+    const urls: string[] = [];
+    if (response.Contents) {
+      for (const item of response.Contents) {
+        if (item.Key && item.Key !== 'arch_gallery/') {
+          const getCmd = new GetObjectCommand({ Bucket: BUCKET_NAME, Key: item.Key });
+          const url = await getSignedUrl(s3Client, getCmd, { expiresIn: 3600 });
+          urls.push(url);
+        }
+      }
+    }
+    res.json(urls);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch images' });
+  }
+});
+
 app.get('/health', (req: Request, res: Response) => res.status(200).json({ status: 'UP' }));
 app.get('/metrics', async (req: Request, res: Response) => {
   res.set('Content-Type', promClient.register.contentType);

@@ -5,64 +5,78 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  build-and-scan:
+  iac-scan:
+    name: Infrastructure Security
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source
-        uses: actions/checkout@v3
-
-      - name: IaC Scan with Checkov
-        uses: bridgecrewio/checkov-action@master
+      - uses: actions/checkout@v3
+      - uses: bridgecrewio/checkov-action@master
         with:
           directory: terraform/
           framework: terraform
           soft_fail: true
 
-      - name: Source Code Quality
-        uses: SonarSource/sonarcloud-github-action@master
+  sast-scan:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - uses: SonarSource/sonarcloud-github-action@master
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=devsecops-app
+            -Dsonar.organization=SusovanDas19
         continue-on-error: true
 
-      - name: OPA Conftest on K8s Manifests
-        uses: instrumenta/conftest-action@master
+  k8s-policy-check:
+    name: Kubernetes Policy Enforcement
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: instrumenta/conftest-action@master
         with:
           files: k8s/deployment.yaml
           policy: policy/k8s.rego
 
-      - name: Build Container Image
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/devsecops-app:${{ github.sha }} -f app/Dockerfile app/
-
-      - name: Container Vulnerability Scan
-        uses: aquasecurity/trivy-action@master
+  build-and-container-scan:
+    name: Image Build & Vulnerability Scan
+    needs: [iac-scan, sast-scan, k8s-policy-check]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: docker build -t ${{ secrets.DOCKER_USERNAME }}/devsecops-app:${{ github.sha }} -f app/Dockerfile app/
+      - uses: aquasecurity/trivy-action@master
         with:
           image-ref: '${{ secrets.DOCKER_USERNAME }}/devsecops-app:${{ github.sha }}'
           format: 'table'
           exit-code: '0'
           severity: 'CRITICAL,HIGH'
-
-      - name: Push to Docker Hub
-        run: |
+      - run: |
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
           docker tag ${{ secrets.DOCKER_USERNAME }}/devsecops-app:${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/devsecops-app:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/devsecops-app:${{ github.sha }}
           docker push ${{ secrets.DOCKER_USERNAME }}/devsecops-app:latest
 
   deploy:
-    needs: build-and-scan
+    name: Azure Kubernetes Deployment
+    needs: build-and-container-scan
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Source Code
-        uses: actions/checkout@v3
-
+      - uses: actions/checkout@v3
       - name: Inject Secrets into K8s Manifest
         run: |
           sed -i "s/DOCKER_USERNAME_PLACEHOLDER/${{ secrets.DOCKER_USERNAME }}/g" k8s/deployment.yaml
           sed -i "s/DB_HOST_PLACEHOLDER/${{ secrets.DB_HOST }}/g" k8s/deployment.yaml
           sed -i "s/DB_USER_PLACEHOLDER/${{ secrets.DB_USER }}/g" k8s/deployment.yaml
           sed -i "s/DB_PASSWORD_PLACEHOLDER/${{ secrets.DB_PASSWORD }}/g" k8s/deployment.yaml
-
+          sed -i "s|AWS_S3_BUCKET_PLACEHOLDER|${{ secrets.AWS_S3_BUCKET }}|g" k8s/deployment.yaml
+          sed -i "s|AWS_ACCESS_KEY_ID_PLACEHOLDER|${{ secrets.AWS_ACCESS_KEY_ID }}|g" k8s/deployment.yaml
+          sed -i "s|AWS_SECRET_ACCESS_KEY_PLACEHOLDER|${{ secrets.AWS_SECRET_ACCESS_KEY }}|g" k8s/deployment.yaml
       - name: Copy K8s Files to Azure VM
         uses: appleboy/scp-action@master
         with:
@@ -71,8 +85,7 @@ jobs:
           key: ${{ secrets.AZURE_VM_SSH_KEY }}
           source: "k8s/"
           target: "/home/azureuser/"
-
-      - name: Deploy to Self-Managed Kubernetes
+      - name: Execute Deployment
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.AZURE_VM_IP }}
