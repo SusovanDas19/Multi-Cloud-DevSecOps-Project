@@ -11,10 +11,14 @@ function switchTab(contentId, tabId) {
     });
     
     // 2. Activate selected tab and content
-    document.getElementById(tabId).classList.add('active');
+    const selectedTab = document.getElementById(tabId);
+    if (selectedTab) selectedTab.classList.add('active');
+    
     const activeContent = document.getElementById(contentId);
-    activeContent.classList.add('active');
-    activeContent.style.display = 'block'; // Force show
+    if (activeContent) {
+        activeContent.classList.add('active');
+        activeContent.style.display = 'block'; // Force show
+    }
     
     // 3. Trigger API Calls
     if(contentId === 'incidents') fetchIncidents();
@@ -98,7 +102,7 @@ async function fetchGallery() {
         
         container.innerHTML = '';
         urls.forEach(url => {
-            container.innerHTML += `<img src="${url}" alt="Architecture Diagram" style="width:100%; max-width:600px; border-radius:8px; border:1px solid #ddd; margin-bottom: 20px;">`;
+            container.innerHTML += `<img src="${url}" alt="Architecture Diagram" style="width:100%; max-width:800px; border-radius:8px; border:1px solid #ddd; margin-bottom: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">`;
         });
     } catch (err) {
         console.error("Error fetching gallery:", err);
@@ -106,11 +110,29 @@ async function fetchGallery() {
     }
 }
 
-// Ultra-robust Copy Fallback for HTTP (Non-Secure Contexts)
+// Ultra-robust Copy Fallback with Professional Template
 function generateEmail(index) {
     const inc = currentIncidents[index];
     const dateStr = new Date(inc.date).toLocaleDateString();
-    const emailText = `Subject: [${inc.severity.toUpperCase()}] ${inc.title}\n\nTitle: ${inc.title}\nDescription: ${inc.description}\nSeverity: ${inc.severity}\nDate: ${dateStr}`;
+    
+    const emailText = `Subject: INCIDENT ALERT: [${inc.severity.toUpperCase()}] - ${inc.title}
+
+Hello Team,
+
+Please be advised that a new incident has been logged in the DevSecOps Platform requiring your attention.
+
+Incident Details:
+--------------------------------------------------
+Title:          ${inc.title}
+Description:    ${inc.description}
+Severity Level: ${inc.severity}
+Date Logged:    ${dateStr}
+--------------------------------------------------
+
+Please review the Architecture Gallery for system context and refer to the Runbook tab for the recommended step-by-step resolution guide.
+
+Best regards,
+DevSecOps Automated Alerting System`;
     
     // 1. Create a temporary text area
     const textArea = document.createElement("textarea");
@@ -128,7 +150,7 @@ function generateEmail(index) {
         // 2. Attempt legacy copy command
         const successful = document.execCommand('copy');
         if (successful) {
-            alert("Email template copied to clipboard!");
+            alert("Professional Email template copied to clipboard!");
         } else {
             // 3. Guaranteed Fallback if browser entirely blocks scripts from copying
             window.prompt("Copy failed (Browser Blocked). Press Ctrl+C / Cmd+C to copy the text below:", emailText);

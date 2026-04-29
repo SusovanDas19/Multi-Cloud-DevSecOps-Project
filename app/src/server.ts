@@ -22,8 +22,8 @@ const httpRequestDurationMicroseconds = new promClient.Histogram({
   labelNames: ['method', 'route', 'code'],
 });
 
-// AWS S3 Setup
-const s3Client = new S3Client({ region: process.env.AWS_REGION || 'ap-northeast-1' });
+// AWS S3 Setup (REGION CORRECTED TO ap-south-1)
+const s3Client = new S3Client({ region: process.env.AWS_REGION || 'ap-south-1' });
 const BUCKET_NAME = process.env.AWS_S3_BUCKET;
 
 // Database Setup
@@ -36,7 +36,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Initialize Database Tables
+// Initialize Database Tables & Runbooks
 const initDB = async () => {
   try {
     await pool.query(`
@@ -50,6 +50,7 @@ const initDB = async () => {
       );
     `);
     
+    // Ensure all 5 Runbooks are present
     const res = await pool.query('SELECT COUNT(*) FROM runbooks');
     if (parseInt(res.rows[0].count) < 5) {
       await pool.query('TRUNCATE runbooks RESTART IDENTITY CASCADE');

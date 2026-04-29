@@ -32,7 +32,7 @@ spec:
           value: "postgres"
         # --- AWS S3 Environment Variables ---
         - name: AWS_REGION
-          value: "ap-northeast-1"
+          value: "ap-south-1"  # Fixed from ap-northeast-1 to match your AWS S3 bucket region
         - name: AWS_S3_BUCKET
           value: "AWS_S3_BUCKET_PLACEHOLDER"
         - name: AWS_ACCESS_KEY_ID
