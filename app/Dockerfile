@@ -11,6 +11,10 @@ RUN npx tsc
 # Stage 2: Run the compiled application
 FROM node:18-alpine
 WORKDIR /usr/src/app
+
+# --- NEW SECURE UPDATE LAYER ---
+RUN apk update && apk upgrade --no-cache
+
 COPY package*.json ./
 RUN npm install --production
 COPY --from=builder /usr/src/app/dist ./dist
