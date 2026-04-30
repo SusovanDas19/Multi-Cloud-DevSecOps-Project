@@ -29,7 +29,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         with:
           args: >
-            -Dsonar.projectKey=devsecops-app
+            -Dsonar.projectKey=SusovanDas19_Multi-Cloud-DevSecOps-Project
             -Dsonar.organization=susovandas19
         continue-on-error: true
 
