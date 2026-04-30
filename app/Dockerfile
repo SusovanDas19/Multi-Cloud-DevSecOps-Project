@@ -1,5 +1,5 @@
 # Stage 1: Build the TypeScript code
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 WORKDIR /usr/src/app
 COPY package*.json ./
 COPY tsconfig.json ./
@@ -9,12 +9,9 @@ COPY public ./public
 RUN npx tsc
 
 # Stage 2: Run the compiled application
-FROM node:18-alpine
+FROM node:20-alpine
 WORKDIR /usr/src/app
-
-# --- NEW SECURE UPDATE LAYER ---
 RUN apk update && apk upgrade --no-cache
-
 COPY package*.json ./
 RUN npm install --production
 COPY --from=builder /usr/src/app/dist ./dist
