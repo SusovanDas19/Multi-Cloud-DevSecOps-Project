@@ -115,6 +115,9 @@ jobs:
     name: OWASP ZAP DAST Scan
     needs: deploy
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - name: ZAP Baseline Scan
@@ -122,14 +125,13 @@ jobs:
         with:
           target: 'http://${{ secrets.AZURE_VM_IP }}:30080'
           fail_action: false
-          token: ${{ secrets.ZAP_GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           allow_issue_writing: true
-
-    name: Upload ZAP artifact
-    uses: actions/upload-artifact@v4
-    with:
-     name: zapscan
-     path: |
-      report_html.html
-      report_json.json
-      report_md.md
+      - name: Upload ZAP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zapscan
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
