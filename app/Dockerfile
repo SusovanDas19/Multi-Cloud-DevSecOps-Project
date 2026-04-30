@@ -11,7 +11,8 @@ RUN npx tsc
 # Stage 2: Run the compiled application
 FROM node:20-alpine
 WORKDIR /usr/src/app
-RUN apk update && apk upgrade --no-cache
+RUN apk update && apk upgrade --no-cache && \
+    apk add --no-cache --upgrade --repository=http://dl-cdn.alpinelinux.org/alpine/edge/main libcrypto3 libssl3
 COPY package*.json ./
 RUN npm install --production
 COPY --from=builder /usr/src/app/dist ./dist
