@@ -118,9 +118,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.13.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: 'http://${{ secrets.AZURE_VM_IP }}:30080'
           fail_action: false
           token: ${{ secrets.ZAP_GITHUB_TOKEN }}
           allow_issue_writing: true
+
+    name: Upload ZAP artifact
+    uses: actions/upload-artifact@v4
+    with:
+     name: zapscan
+     path: |
+      report_html.html
+      report_json.json
+      report_md.md
