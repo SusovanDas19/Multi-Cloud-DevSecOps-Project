@@ -26,19 +26,27 @@ spec:
           value: "DB_HOST_PLACEHOLDER"
         - name: DB_USER
           value: "DB_USER_PLACEHOLDER"
-        - name: DB_PASSWORD
-          value: "DB_PASSWORD_PLACEHOLDER"
         - name: DB_NAME
           value: "postgres"
+        # --- SECRETS FETCHED FROM AZURE KEY VAULT VIA K8S SECRETS ---
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: devsecops-secrets
+              key: db-password
         # --- AWS S3 Environment Variables ---
         - name: AWS_REGION
-          value: "ap-south-1"  # Fixed from ap-northeast-1 to match your AWS S3 bucket region
+          value: "ap-south-1"  
         - name: AWS_S3_BUCKET
           value: "AWS_S3_BUCKET_PLACEHOLDER"
         - name: AWS_ACCESS_KEY_ID
           value: "AWS_ACCESS_KEY_ID_PLACEHOLDER"
+        # --- SECRETS FETCHED FROM AZURE KEY VAULT VIA K8S SECRETS ---
         - name: AWS_SECRET_ACCESS_KEY
-          value: "AWS_SECRET_ACCESS_KEY_PLACEHOLDER"
+          valueFrom:
+            secretKeyRef:
+              name: devsecops-secrets
+              key: aws-secret-key
         # --- Health Checks ---
         livenessProbe:
           httpGet:

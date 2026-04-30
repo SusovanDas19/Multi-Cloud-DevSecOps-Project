@@ -9,7 +9,7 @@ jobs:
     name: Infrastructure Security
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: bridgecrewio/checkov-action@master
         with:
           directory: terraform/
@@ -20,7 +20,7 @@ jobs:
     name: Code Quality Analysis
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: SonarSource/sonarcloud-github-action@master
@@ -37,7 +37,7 @@ jobs:
     name: Kubernetes Policy Enforcement
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: instrumenta/conftest-action@master
         with:
           files: k8s/deployment.yaml
@@ -48,14 +48,16 @@ jobs:
     needs: [iac-scan, sast-scan, k8s-policy-check]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: docker build -t ${{ secrets.DOCKER_USERNAME }}/devsecops-app:${{ github.sha }} -f app/Dockerfile app/
-      - uses: aquasecurity/trivy-action@master
+      - uses: aquasecurity/trivy-action@0.24.0
         with:
           image-ref: '${{ secrets.DOCKER_USERNAME }}/devsecops-app:${{ github.sha }}'
           format: 'table'
-          exit-code: '0'
-          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL'
       - run: |
           echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
           docker tag ${{ secrets.DOCKER_USERNAME }}/devsecops-app:${{ github.sha }} ${{ secrets.DOCKER_USERNAME }}/devsecops-app:latest
@@ -67,16 +69,24 @@ jobs:
     needs: build-and-container-scan
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Inject Secrets into K8s Manifest
+      - uses: actions/checkout@v4
+      - name: Inject Non-Secret Variables into K8s Manifest
         run: |
           sed -i "s/DOCKER_USERNAME_PLACEHOLDER/${{ secrets.DOCKER_USERNAME }}/g" k8s/deployment.yaml
           sed -i "s/DB_HOST_PLACEHOLDER/${{ secrets.DB_HOST }}/g" k8s/deployment.yaml
           sed -i "s/DB_USER_PLACEHOLDER/${{ secrets.DB_USER }}/g" k8s/deployment.yaml
-          sed -i "s/DB_PASSWORD_PLACEHOLDER/${{ secrets.DB_PASSWORD }}/g" k8s/deployment.yaml
           sed -i "s|AWS_S3_BUCKET_PLACEHOLDER|${{ secrets.AWS_S3_BUCKET }}|g" k8s/deployment.yaml
           sed -i "s|AWS_ACCESS_KEY_ID_PLACEHOLDER|${{ secrets.AWS_ACCESS_KEY_ID }}|g" k8s/deployment.yaml
-          sed -i "s|AWS_SECRET_ACCESS_KEY_PLACEHOLDER|${{ secrets.AWS_SECRET_ACCESS_KEY }}|g" k8s/deployment.yaml
+      - name: Login via Az module
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+      - name: Get Secrets from Azure Key Vault
+        uses: Azure/get-keyvault-secrets@v1
+        id: akvSecrets
+        with:
+          keyvault: "devsecops-vault-123"
+          secrets: 'db-password, aws-secret-key'
       - name: Copy K8s Files to Azure VM
         uses: appleboy/scp-action@master
         with:
@@ -91,6 +101,24 @@ jobs:
           host: ${{ secrets.AZURE_VM_IP }}
           username: azureuser
           key: ${{ secrets.AZURE_VM_SSH_KEY }}
+          envs: db-password, aws-secret-key
           script: |
+            kubectl create secret generic devsecops-secrets \
+              --from-literal=db-password=${{ steps.akvSecrets.outputs.db-password }} \
+              --from-literal=aws-secret-key=${{ steps.akvSecrets.outputs.aws-secret-key }} \
+              --dry-run=client -o yaml | kubectl apply -f -
+            
             kubectl apply -f /home/azureuser/k8s/deployment.yaml
             kubectl rollout restart deployment devsecops-app
+
+  dast-scan:
+    name: OWASP ZAP DAST Scan
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.13.0
+        with:
+          target: 'http://${{ secrets.AZURE_VM_IP }}:30080'
+          fail_action: false
