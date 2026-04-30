@@ -123,3 +123,4 @@ jobs:
           target: 'http://${{ secrets.AZURE_VM_IP }}:30080'
           fail_action: false
           token: ${{ secrets.ZAP_GITHUB_TOKEN }}
+          artifact_name: zapreport
