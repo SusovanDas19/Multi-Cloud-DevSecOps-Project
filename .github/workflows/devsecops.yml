@@ -85,7 +85,7 @@ jobs:
         uses: Azure/get-keyvault-secrets@v1
         id: akvSecrets
         with:
-          keyvault: "devsecops-vault-123"
+          keyvault: "devsecops-vault-12345"
           secrets: 'db-password, aws-secret-key'
       - name: Copy K8s Files to Azure VM
         uses: appleboy/scp-action@master
